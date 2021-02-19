@@ -8,6 +8,8 @@
 # generator 안쓰면 터지는거 뽑아두자
 # 8860 - 1660 7000 단어들은??
 # outseq inseq 명확하게 embedding matrix vector 등등
+# 트 밸 테 로 나눠서 메트릭스만
+# 트 밸로만 나눠서 최종 훈련만
 
 # 제너레이터, lstm, cnn, 자연어 처리의 기초, 
 '''

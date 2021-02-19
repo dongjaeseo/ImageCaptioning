@@ -298,8 +298,6 @@ def greedySearch(photo):
         sequence = [wordtoix[w] for w in in_text.split() if w in wordtoix]
         sequence = pad_sequences([sequence], maxlen=max_length)
         yhat = model.predict([photo,sequence], verbose=0)
-        print(np.max(yhat))
-        acc *= np.max(yhat)
         yhat = np.argmax(yhat)
         word = ixtoword[yhat]
         in_text += ' ' + word
@@ -309,7 +307,7 @@ def greedySearch(photo):
     final = in_text.split()
     final = final[1:-1]
     final = ' '.join(final)
-    return final,acc
+    return final
 
 def beam_search_predictions(image, beam_index = 3):
     start = [wordtoix["startseq"]]

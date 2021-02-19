@@ -1,7 +1,5 @@
 import numpy as np
-from numpy import array
 import matplotlib.pyplot as plt
-# %matplotlib inline
 
 import string
 import os
@@ -9,20 +7,19 @@ import glob
 from PIL import Image
 from time import time
 
-from keras import Input, layers
-from keras import optimizers
-from keras.optimizers import Adam
-from keras.preprocessing import sequence
-from keras.preprocessing import image
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-from keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout
-from keras.layers.wrappers import Bidirectional
-from keras.layers.merge import add
-from keras.applications.inception_v3 import InceptionV3
-from keras.applications.inception_v3 import preprocess_input
-from keras.models import Model
-from keras.utils import to_categorical
+from tensorflow.keras import Input, layers
+from tensorflow.keras import optimizers
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing import sequence
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout, add, concatenate
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 
 token_path = "../input/flickr8k/Data/Flickr8k_text/Flickr8k.token.txt"
 train_images_path = '../input/flickr8k/Data/Flickr8k_text/Flickr_8k.trainImages.txt'
@@ -50,6 +47,7 @@ for line in doc.split('\n'):
                 descriptions[image_id] = list()
             descriptions[image_id].append(image_desc)
 
+
 ### 의문1. 위랑 합칠수있지않냐??
 # 느낌표, 물음표 등등 다 지워준다
 # key 는 딕셔너리키, desc_list 는 캡션리스트
@@ -71,6 +69,13 @@ for key, desc_list in descriptions.items():
 # plt.imshow(x)
 # plt.show()
 # print(descriptions['1000268201_693b08cb0e'])
+
+# 집합은 중복을 허용하지 않아서 vocab을 만드는데 사용!
+# 캡션 리스트의 단어들을 vocab 안에 넣는다
+vocabulary = set()
+for key in descriptions.keys():
+        [vocabulary.update(d.split()) for d in descriptions[key]]
+print('Original Vocabulary Size: %d' % len(vocabulary))
 
 # 이제 이름도 깔끔, 설명도 깔끔해졌으니 다시 붙여보장~~
 lines = list()
@@ -272,7 +277,7 @@ def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_ba
                     y.append(out_seq)
 
             if n==num_photos_per_batch:
-                yield ([array(X1), array(X2)], array(y))
+                yield ([np.array(X1), np.array(X2)], np.array(y))
                 X1, X2, y = list(), list(), list()
                 n=0
 
