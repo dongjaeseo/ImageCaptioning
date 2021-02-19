@@ -17,6 +17,7 @@ from keras.preprocessing import image
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout
+from keras.layers.merge import concatenate
 from keras.layers.wrappers import Bidirectional
 from keras.layers.merge import add
 from keras.applications.inception_v3 import InceptionV3
@@ -214,7 +215,7 @@ def preprocess(image_path):
 # 이미지를 벡터화 시켜서 1차원으로 만들어줭
 def encode(image):
     image = preprocess(image) 
-    fea_vec = model_new.predict(image) 
+    fea_vec = model_new.predict(image)
     fea_vec = np.reshape(fea_vec, fea_vec.shape[1])
     return fea_vec
 
@@ -232,15 +233,15 @@ for img in test_img:
 
 inputs1 = Input(shape=(2048,))
 fe1 = Dropout(0.5)(inputs1)
-fe2 = Dense(256, activation='relu')(fe1)
+fe2 = Dense(200, activation='relu')(fe1)
 
 inputs2 = Input(shape=(max_length,))
 se1 = Embedding(vocab_size, embedding_dim, mask_zero=True)(inputs2)
 se2 = Dropout(0.5)(se1)
 se3 = LSTM(256)(se2)
 
-decoder1 = add([fe2, se3])
-decoder2 = Dense(256, activation='relu')(decoder1)
+decoder1 = concatenate([fe2, se3])
+decoder2 = Dense(512, activation='relu')(decoder1)
 outputs = Dense(vocab_size, activation='softmax')(decoder2)
 
 model = Model(inputs=[inputs1, inputs2], outputs=outputs)
@@ -250,7 +251,7 @@ model.summary()
 model.layers[2].set_weights([embedding_matrix])
 model.layers[2].trainable = False
 
-model.compile(loss='categorical_crossentropy', optimizer='adam')
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['acc'])
 
 def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_batch):
     X1, X2, y = list(), list(), list()
@@ -271,8 +272,8 @@ def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_ba
                     # pad input sequence
                     in_seq = pad_sequences([in_seq], maxlen=max_length)[0]
                     # encode output sequence
-                    out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
-                    # out_seq = to_categorical(out_seq, num_classes=vocab_size)
+                    out_seq = to_categorical(out_seq, num_classes=vocab_size)
+                    # out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
                     # store
                     X1.append(photo)
                     X2.append(in_seq)
@@ -283,20 +284,22 @@ def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_ba
                 X1, X2, y = list(), list(), list()
                 n=0
 
-epochs = 30
+epochs = 1
 batch_size = 3
 steps = len(train_descriptions)/batch_size
 
 generator = data_generator(train_descriptions, train_features, wordtoix, max_length, batch_size)
-model.fit(generator, epochs=epochs, steps_per_epoch=steps, verbose=1)
-
+model.fit_generator(generator, epochs=epochs, steps_per_epoch=steps, verbose=1)
 
 def greedySearch(photo):
     in_text = 'startseq'
+    acc = 1
     for i in range(max_length):
         sequence = [wordtoix[w] for w in in_text.split() if w in wordtoix]
         sequence = pad_sequences([sequence], maxlen=max_length)
         yhat = model.predict([photo,sequence], verbose=0)
+        print(np.max(yhat))
+        acc *= np.max(yhat)
         yhat = np.argmax(yhat)
         word = ixtoword[yhat]
         in_text += ' ' + word
@@ -306,7 +309,7 @@ def greedySearch(photo):
     final = in_text.split()
     final = final[1:-1]
     final = ' '.join(final)
-    return final
+    return final,acc
 
 def beam_search_predictions(image, beam_index = 3):
     start = [wordtoix["startseq"]]
