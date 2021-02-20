@@ -38,7 +38,7 @@ for line in doc.split('\n'):
             words = [word.lower() for word in words]
             words = [word.translate(table) for word in words]
             words = [word for word in words if len(word)>1]
-            image_desc = 'startseq ' + ' '.join(words) + ' endseq'
+            image_desc = 'start ' + ' '.join(words) + ' end'
             
             if image_id not in descriptions:
                 descriptions[image_id] = list()
@@ -113,7 +113,7 @@ max_length = np.max(num)
 
 embeddings_dict = {} 
 glove = open(os.path.join(glove_path,'glove.6B.200d.txt'), encoding="utf-8")
-for line in tqdm(glove):
+for line in glove:
     values = line.split()
     word = values[0]
     vector = np.asarray(values[1:], dtype='float32')
@@ -215,14 +215,14 @@ val_steps = np.ceil(len(val_descriptions)/batch_size)
 
 train_generator = data_generator(train_descriptions, train_image_feature, word_int, max_length, batch_size)
 val_generator = data_generator(val_descriptions, val_image_feature, word_int, max_length, batch_size)
-model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, verbose=1, callbacks =[es,lr,cp], validation_data= val_generator, validation_steps=val_steps)
+model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, verbose=1, callbacks =[lr,cp], validation_data= val_generator, validation_steps=val_steps)
 model.save('../input/model/prac_val_10_noes.hdf5')
 
 model_cp = load_model('../input/model/prac_val_10.hdf5')
 model_last = load_model('../input/model/prac_val_10_noes.hdf5')
 
 def greedySearch(photo, model):
-    in_text = 'startseq'
+    in_text = 'start'
     for i in range(max_length):
         sequence = [word_int[w] for w in in_text.split() if w in word_int]
         sequence = pad_sequences([sequence], maxlen=max_length)
@@ -230,7 +230,7 @@ def greedySearch(photo, model):
         yhat = np.argmax(yhat)
         word = int_word[yhat]
         in_text += ' ' + word
-        if word == 'endseq':
+        if word == 'end':
             break
 
     final = in_text.split()
@@ -239,7 +239,7 @@ def greedySearch(photo, model):
     return final
 
 def beam_search_predictions(image, model, beam_index = 3):
-    start = [word_int["startseq"]]
+    start = [word_int["start"]]
     start_word = [[start, 0.0]]
     while len(start_word[0][0]) < max_length:
         temp = []
@@ -266,7 +266,7 @@ def beam_search_predictions(image, model, beam_index = 3):
     final_caption = []
     
     for i in intermediate_caption:
-        if i != 'endseq':
+        if i != 'end':
             final_caption.append(i)
         else:
             break
