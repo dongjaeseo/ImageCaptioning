@@ -2,6 +2,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import pandas as pd
+import glob
+
+import string
+import os
+from PIL import Image
+from time import time
+from tqdm import tqdm
+
+from tensorflow.keras import Input, layers
+from tensorflow.keras import optimizers
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing import sequence
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout, add, concatenate
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+import pandas as pd
 
 import string
 import os
@@ -153,82 +180,94 @@ def encode(image_path):
     fea_vec = np.reshape(fea_vec, fea_vec.shape[1])
     return fea_vec
 
-train_encoding = {}
-for i, id in enumerate(train_id):
-    train_encoding[id] = encode(train_path[i])
-train_features = train_encoding
+model = load_model('../input/model/real.hdf5')
 
-val_encoding = {}
-for i, id in enumerate(val_id):
-    val_encoding[id] = encode(val_path[i])
-val_features = val_encoding
+def greedySearch(photo):
+    in_text = 'startseq'
+    for i in range(max_length):
+        sequence = [word_int[w] for w in in_text.split() if w in word_int]
+        sequence = pad_sequences([sequence], maxlen=max_length)
+        yhat = model.predict([photo,sequence], verbose=0)
+        yhat = np.argmax(yhat)
+        word = int_word[yhat]
+        in_text += ' ' + word
+        if word == 'endseq':
+            break
 
-# print(val_encoding) '3133825703_359a0c414d': array([0.66340417, 1.1728557 , 1.0198282 , ..., 0.46682513, 0.6319994
+    final = in_text.split()
+    final = final[1:-1]
+    final = ' '.join(final)
+    return final
 
-# 모델
-inputs1 = Input(shape=(2048,))
-fe1 = Dropout(0.5)(inputs1)
-fe2 = Dense(256, activation='relu')(fe1)
+def beam_search_predictions(image, beam_index = 3):
+    start = [word_int["startseq"]]
+    start_word = [[start, 0.0]]
+    while len(start_word[0][0]) < max_length:
+        temp = []
+        for s in start_word:
+            par_caps = sequence.pad_sequences([s[0]], maxlen=max_length, padding='post')
+            preds = model.predict([image,par_caps], verbose=0)
+            word_preds = np.argsort(preds[0])[-beam_index:]
+            # Getting the top <beam_index>(n) predictions and creating a 
+            # new list so as to put them via the model again
+            for w in word_preds:
+                next_cap, prob = s[0][:], s[1]
+                next_cap.append(w)
+                prob += preds[0][w]
+                temp.append([next_cap, prob])
+                    
+        start_word = temp
+        # Sorting according to the probabilities
+        start_word = sorted(start_word, reverse=False, key=lambda l: l[1])
+        # Getting the top words
+        start_word = start_word[-beam_index:]
+    
+    start_word = start_word[-1][0]
+    intermediate_caption = [int_word[i] for i in start_word]
+    final_caption = []
+    
+    for i in intermediate_caption:
+        if i != 'endseq':
+            final_caption.append(i)
+        else:
+            break
 
-inputs2 = Input(shape=(max_length,))
-se1 = Embedding(vocab_size, embedding_dim, mask_zero=True)(inputs2)
-se2 = Dropout(0.5)(se1)
-se3 = LSTM(256)(se2)
+    final_caption = ' '.join(final_caption[1:])
+    return final_caption
 
-decoder1 = add([fe2, se3])
-decoder2 = Dense(256, activation='relu')(decoder1)
-outputs = Dense(vocab_size, activation='softmax')(decoder2)
+pics_path = glob.glob('../input/test/' + '*.jpg')
+# print(pics_path)
+for path in pics_path:
+    print(path)
+    image1 = encode(path)
+    image1 = image1.reshape((1,2048))
+    x = plt.imread(path)
+    plt.imshow(x)
+    plt.show()
+    print("Greedy Search:",greedySearch(image1))
+    print("Beam Search, K = 3:",beam_search_predictions(image1, beam_index = 3))
+    print("Beam Search, K = 5:",beam_search_predictions(image1, beam_index = 5))
+    print("Beam Search, K = 7:",beam_search_predictions(image1, beam_index = 7))
+    print("Beam Search, K = 10:",beam_search_predictions(image1, beam_index = 10))
+# pic = '2398605966_1d0c9e6a20.jpg'
+# image = encoding_test[pic].reshape((1,2048))
+# x=plt.imread(images_path+pic)
+# plt.imshow(x)
+# plt.show()
 
-model = Model(inputs=[inputs1, inputs2], outputs=outputs)
-model.summary()
+# print("Greedy Search:",greedySearch(image))
+# print("Beam Search, K = 3:",beam_search_predictions(image, beam_index = 3))
+# print("Beam Search, K = 5:",beam_search_predictions(image, beam_index = 5))
+# print("Beam Search, K = 7:",beam_search_predictions(image, beam_index = 7))
+# print("Beam Search, K = 10:",beam_search_predictions(image, beam_index = 10))
 
-# 임베딩 레이어!! 우린 이거의 웨이트 값이 변하길 원치 않아욧
-model.layers[2].set_weights([embedding_matrix])
-model.layers[2].trainable = False
+# pic = list(encoding_test.keys())[1]
+# image = encoding_test[pic].reshape((1,2048))
+# x=plt.imread(images_path+pic)
+# plt.imshow(x)
+# plt.show()
 
-model.compile(loss='categorical_crossentropy', optimizer='adam')
-
-def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_batch):
-    X1, X2, y = list(), list(), list()
-    n=0
-    # loop for ever over images
-    while 1:
-        for key, desc_list in descriptions.items():
-            n+=1
-            # retrieve the photo feature
-            photo = photos[key]
-            for desc in desc_list:
-                # encode the sequence
-                seq = [wordtoix[word] for word in desc.split(' ') if word in wordtoix]
-                # split one sequence into multiple X, y pairs
-                for i in range(1, len(seq)):
-                    # split into input and output pair
-                    in_seq, out_seq = seq[:i], seq[i]
-                    # pad input sequence
-                    in_seq = pad_sequences([in_seq], maxlen=max_length)[0]
-                    # encode output sequence
-                    out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
-                    # out_seq = to_categorical(out_seq, num_classes=vocab_size)
-                    # store
-                    X1.append(photo)
-                    X2.append(in_seq)
-                    y.append(out_seq)
-
-            if n==num_photos_per_batch:
-                yield ([np.array(X1), np.array(X2)], np.array(y))
-                X1, X2, y = list(), list(), list()
-                n=0
-
-cp = ModelCheckpoint('../input/model/real.hdf5', save_best_only=True)
-es = EarlyStopping(patience = 10)
-lr = ReduceLROnPlateau(factor=0.25, patience = 5, verbose = 1)
-epochs = 50
-batch_size = 3
-steps = len(train_descriptions)/batch_size
-val_steps = len(val_descriptions)/batch_size
-
-train_generator = data_generator(train_descriptions, train_features, word_int, max_length, batch_size)
-val_generator = data_generator(val_descriptions, val_features, word_int, max_length, batch_size)
-model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, verbose=1, callbacks =[es,lr,cp], validation_data= val_generator, validation_steps=val_steps)
-model.save('../input/model/hello.h5')
-
+# print("Greedy:",greedySearch(image))
+# print("Beam Search, K = 3:",beam_search_predictions(image, beam_index = 3))
+# print("Beam Search, K = 5:",beam_search_predictions(image, beam_index = 5))
+# print("Beam Search, K = 7:",beam_search_predictions(image, beam_index = 7))

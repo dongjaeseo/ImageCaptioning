@@ -10,6 +10,8 @@
 # outseq inseq 명확하게 embedding matrix vector 등등
 # 트 밸 테 로 나눠서 메트릭스만
 # 트 밸로만 나눠서 최종 훈련만
+# 마스크 제로
+# 내용 벡터
 
 # 제너레이터, lstm, cnn, 자연어 처리의 기초, 
 '''

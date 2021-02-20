@@ -276,14 +276,14 @@ def data_generator(descriptions, photos, wordtoix, max_length, num_photos_per_ba
                 X1, X2, y = list(), list(), list()
                 n=0
 
-epochs = 50
+epochs = 1
 batch_size = 3
 steps = len(train_descriptions)/batch_size
 
 generator = data_generator(train_descriptions, train_features, wordtoix, max_length, batch_size)
 model.fit(generator, epochs=epochs, steps_per_epoch=steps, verbose=1)
 
-
+model.save('../input/model/wow.h5')
 def greedySearch(photo):
     in_text = 'startseq'
     for i in range(max_length):
