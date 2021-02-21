@@ -27,7 +27,6 @@ glove_path = '../input/glove6b'
 
 doc = open(token_path,'r').read()
 
-# 그리고 딕셔너리 형태로 이미지이름:[캡션1,캡션2] 형태로 저장
 descriptions = dict()
 table = str.maketrans('', '', string.punctuation)
 for line in doc.split('\n'):
@@ -211,12 +210,12 @@ batch_size = 3
 steps = np.ceil(len(train_descriptions)/batch_size)
 val_steps = np.ceil(len(val_descriptions)/batch_size)
 
-# train_generator = data_generator(train_descriptions, train_image_feature, word_int, max_length, batch_size)
-# val_generator = data_generator(val_descriptions, val_image_feature, word_int, max_length, batch_size)
-# model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, validation_data = val_generator, validation_steps = val_steps, verbose=1)#, callbacks =[lr,cp])
-# model.save('../input/model/val_10.hdf5')
+train_generator = data_generator(train_descriptions, train_image_feature, word_int, max_length, batch_size)
+val_generator = data_generator(val_descriptions, val_image_feature, word_int, max_length, batch_size)
+model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, validation_data = val_generator, validation_steps = val_steps, verbose=1)#, callbacks =[lr,cp])
+model.save('../input/model/val_10.hdf5')
 
-model_last = load_model('../input/model/prac_val_10_noes.hdf5')
+model_last = load_model('../input/model/no_val_10_noes.hdf5')
 model_cp = load_model('../input/model/no_val_10_noes.hdf5')
 
 def greedySearch(photo, model):
@@ -284,4 +283,4 @@ for path in pics_path:
     print("Beam Search, K = 5:",beam_search_predictions(image1, model_last, beam_index = 5))
     print("Beam Search, K = 7:",beam_search_predictions(image1, model_last, beam_index = 7))
     print("Beam Search, K = 10:",beam_search_predictions(image1, model_last, beam_index = 10))
-    print("Beam Search, K = 10:",beam_search_predictions(image1, model_last, beam_index = 20))
+    print("Beam Search, K = 15:",beam_search_predictions(image1, model_last, beam_index = 20))
