@@ -143,12 +143,12 @@ def image_feature(image_path):
     return fea_vec
 
 train_image_feature = {}
-for i, id in enumerate(train_id):
-    train_image_feature[id] = image_feature(train_path[i])
+for id in train_id:
+    train_image_feature[id] = image_feature(f'../input/flickr8k/Data/Flicker8k_Dataset/{id}.jpg')
 
 val_image_feature = {}
-for i, id in enumerate(val_id):
-    val_image_feature[id] = image_feature(val_path[i])
+for id in val_id:
+    val_image_feature[id] = image_feature(f'../input/flickr8k/Data/Flicker8k_Dataset/{id}.jpg')
 
 # print(val_image_feature['3251906388_c09d44340e'])
 
@@ -205,21 +205,19 @@ def data_generator(descriptions, image_feat, word_int, max_length, num_photos_pe
                 X1, X2, y = list(), list(), list()
                 n=0
 
-cp = ModelCheckpoint('../input/model/prac_val_10.hdf5', save_best_only=True)
-lr = ReduceLROnPlateau(factor=0.5, patience = 3, verbose = 1)
-es = EarlyStopping(patience = 6)
-epochs = 50
+cp = ModelCheckpoint('../input/model/val_10_cp.hdf5', save_best_only=True)
+epochs = 30
 batch_size = 3
 steps = np.ceil(len(train_descriptions)/batch_size)
 val_steps = np.ceil(len(val_descriptions)/batch_size)
 
 # train_generator = data_generator(train_descriptions, train_image_feature, word_int, max_length, batch_size)
 # val_generator = data_generator(val_descriptions, val_image_feature, word_int, max_length, batch_size)
-# model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, verbose=1, callbacks =[lr,cp], validation_data= val_generator, validation_steps=val_steps)
-# model.save('../input/model/prac_val_10_noes.hdf5')
+# model.fit(train_generator, epochs=epochs, steps_per_epoch=steps, validation_data = val_generator, validation_steps = val_steps, verbose=1)#, callbacks =[lr,cp])
+# model.save('../input/model/val_10.hdf5')
 
-model_cp = load_model('../input/model/prac_val_10.hdf5')
 model_last = load_model('../input/model/prac_val_10_noes.hdf5')
+model_cp = load_model('../input/model/no_val_10_noes.hdf5')
 
 def greedySearch(photo, model):
     in_text = 'start'
@@ -244,7 +242,7 @@ def beam_search_predictions(image, model, beam_index = 3):
     while len(start_word[0][0]) < max_length:
         temp = []
         for s in start_word:
-            par_caps = sequence.pad_sequences([s[0]], maxlen=max_length, padding='post')
+            par_caps = sequence.pad_sequences([s[0]], maxlen=max_length)
             preds = model.predict([image,par_caps], verbose=0)
             word_preds = np.argsort(preds[0])[-beam_index:]
             # Getting the top <beam_index>(n) predictions and creating a 
@@ -281,13 +279,9 @@ for path in pics_path:
     x = plt.imread(path)
     plt.imshow(x)
     plt.show()
-    print("Greedy Search:",greedySearch(image1, model_cp))
     print("Greedy Search:",greedySearch(image1, model_last))
-    print("Beam Search, K = 3:",beam_search_predictions(image1, model_cp, beam_index = 3))
     print("Beam Search, K = 3:",beam_search_predictions(image1, model_last, beam_index = 3))
-    print("Beam Search, K = 5:",beam_search_predictions(image1, model_cp, beam_index = 5))
     print("Beam Search, K = 5:",beam_search_predictions(image1, model_last, beam_index = 5))
-    print("Beam Search, K = 7:",beam_search_predictions(image1, model_cp, beam_index = 7))
     print("Beam Search, K = 7:",beam_search_predictions(image1, model_last, beam_index = 7))
-    print("Beam Search, K = 10:",beam_search_predictions(image1, model_cp, beam_index = 10))
     print("Beam Search, K = 10:",beam_search_predictions(image1, model_last, beam_index = 10))
+    print("Beam Search, K = 10:",beam_search_predictions(image1, model_last, beam_index = 20))
