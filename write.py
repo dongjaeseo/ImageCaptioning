@@ -2,13 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import glob
 import string
+import cv2
 
 from tensorflow.keras import Input, layers
 from tensorflow.keras.preprocessing import sequence
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout, add, concatenate, Conv1D, Flatten
+from tensorflow.keras.layers import LSTM, Embedding, Dense, Activation, Flatten, Reshape, Dropout, add, concatenate
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.applications.inception_v3 import preprocess_input
@@ -90,6 +91,7 @@ for word in vocab:
 
 # zero padding 을 포함하기 위해 1을 더해준다
 vocab_size = len(int_word) + 1
+# print(vocab_size) # 1949
 
 # max_length
 num = []
@@ -97,6 +99,7 @@ for _, captions in descriptions.items():
     for line in captions:
         num.append(len(line.split()))
 max_length = np.max(num)
+# print(max_length) # 34
 
 # GloVe 를 불러온다!
 embeddings_dict = {} 
@@ -139,15 +142,17 @@ for id in val_id:
 
 # 모델
 inputs1 = Input(shape=(2048,))
-fe1 = Dropout(0.5)(inputs1)
+fe1 = Dropout(0.0)(inputs1)
 fe2 = Dense(256, activation='relu')(fe1)
+# fe2 = Dense(256, activation='relu')(inputs1)
 
 inputs2 = Input(shape=(max_length,))
-se1 = Embedding(vocab_size, embedding_dim)(inputs2)
+se1 = Embedding(vocab_size, embedding_dim, mask_zero=True)(inputs2)
 se2 = Dropout(0.5)(se1)
-se3 = LSTM(256, activation = 'relu')(se2)
+se3 = LSTM(256, activation= 'relu')(se2)
+# se3 = LSTM(256)(se1)
 
-decoder1 = concatenate([fe2, se3])
+decoder1 = add([fe2, se3])
 # decoder1 = concatenate([fe2, se3])
 decoder2 = Dense(256, activation='relu')(decoder1)
 outputs = Dense(vocab_size, activation='softmax')(decoder2)
@@ -183,19 +188,20 @@ def data_generator(descriptions, image_feat, num_photos_per_batch):
                 X1, X2, y = list(), list(), list()
                 n=0
 
-epochs = 30
+cp = ModelCheckpoint('../input/model/1val_10_cp.hdf5', save_best_only=True)
+epochs = 1
 batch_size = 3
-train_generator = data_generator(train_descriptions, train_image_feature, batch_size)
-val_generator = data_generator(val_descriptions, val_image_feature, batch_size)
 steps = np.ceil(len(train_descriptions)/batch_size)
 val_steps = np.ceil(len(val_descriptions)/batch_size)
 
+train_generator = data_generator(train_descriptions, train_image_feature, batch_size)
+val_generator = data_generator(val_descriptions, val_image_feature, batch_size)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['acc'])
-model.fit_generator(train_generator, epochs=epochs, steps_per_epoch=steps,\
-     validation_data = val_generator, validation_steps = val_steps, verbose=1)
-model.save('../input/model/imagecaption.hdf5')
+model.fit_generator(train_generator, epochs=epochs, steps_per_epoch=steps, validation_data = val_generator, validation_steps = val_steps, verbose=1, callbacks =[cp])
+model.save('../input/model/1val_10.hdf5')
 
-model = load_model('../input/model/imagecaption.hdf5')
+model_cp = load_model('../input/model/1val_10_cp.hdf5')
+model_last = load_model('../input/model/1val_10_cp.hdf5')
 
 def greedySearch(photo, model):
     in_text = 'start'
@@ -223,6 +229,8 @@ def beam_search_predictions(image, model, beam_index = 3):
             par_caps = pad_sequences([s[0]], maxlen=max_length)
             preds = model.predict([image,par_caps], verbose=0)
             word_preds = np.argsort(preds[0])[-beam_index:]
+            # Getting the top <beam_index>(n) predictions and creating a 
+            # new list so as to put them via the model again
             for w in word_preds:
                 next_cap, prob = s[0][:], s[1]
                 next_cap.append(w)
@@ -230,7 +238,9 @@ def beam_search_predictions(image, model, beam_index = 3):
                 temp.append([next_cap, prob])
                     
         start_word = temp
+        # Sorting according to the probabilities
         start_word = sorted(start_word, reverse=False, key=lambda l: l[1])
+        # Getting the top words
         start_word = start_word[-beam_index:]
     
     start_word = start_word[-1][0]
@@ -248,13 +258,26 @@ def beam_search_predictions(image, model, beam_index = 3):
 
 pics_path = glob.glob('../input/test/' + '*.jpg')
 for path in pics_path:
+    fig = plt.figure()
+    row = 2
+    col = 3
+
     image1 = image_feature(path)
     image1 = image1.reshape((1,2048))
-    x = plt.imread(path)
-    plt.imshow(x)
+    searches = ["Greedy : " + str(greedySearch(image1, model_last)),\
+        "Beam 3: "+ str(beam_search_predictions(image1, model_last, beam_index = 3)),\
+        "Beam 5: "+ str(beam_search_predictions(image1, model_last, beam_index = 5)),\
+        "Beam 7: "+ str(beam_search_predictions(image1, model_last, beam_index = 7)),\
+        "Beam 10: "+ str(beam_search_predictions(image1, model_last, beam_index = 10))]
+    for i in range(5):
+        x = cv2.imread(path)
+        ax = fig.add_subplot(row,col,i+1)
+        ax.imshow(cv2.cvtColor(x,cv2.COLOR_BGR2RGB))
+        ax.set_xlabel(searches[i])
+        ax.set_xticks([]), ax.set_yticks([])
     plt.show()
-    print("Greedy:",greedySearch(image1, model))
-    print("Beam, 3:",beam_search_predictions(image1, model, beam_index = 3))
-    print("Beam, 5:",beam_search_predictions(image1, model, beam_index = 5))
-    print("Beam, 7:",beam_search_predictions(image1, model, beam_index = 7))
-    print("Beam, 10:",beam_search_predictions(image1, model, beam_index = 10))
+    # print("Greedy Search:",greedySearch(image1, model_last))
+    # print("Beam Search, K = 3:",beam_search_predictions(image1, model_last, beam_index = 3))
+    # print("Beam Search, K = 5:",beam_search_predictions(image1, model_last, beam_index = 5))
+    # print("Beam Search, K = 7:",beam_search_predictions(image1, model_last, beam_index = 7))
+    # print("Beam Search, K = 10:",beam_search_predictions(image1, model_last, beam_index = 10))
