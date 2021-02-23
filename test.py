@@ -147,7 +147,7 @@ se1 = Embedding(vocab_size, embedding_dim)(inputs2)
 se2 = Dropout(0.5)(se1)
 se3 = LSTM(256, activation = 'relu')(se2)
 
-decoder1 = concatenate([fe2, se3])
+decoder1 = add([fe2, se3])
 # decoder1 = concatenate([fe2, se3])
 decoder2 = Dense(256, activation='relu')(decoder1)
 outputs = Dense(vocab_size, activation='softmax')(decoder2)
@@ -158,42 +158,6 @@ model.summary()
 # 임베딩 레이어에 가중치를 저장! 
 model.layers[2].set_weights([embedding_matrix])
 model.layers[2].trainable = False
-
-# 데이터 제너레이터! batch 만큼의 사진을 fit으로 전달한다!
-def data_generator(descriptions, image_feat, num_photos_per_batch):
-    X1, X2, y = list(), list(), list()
-    n=0
-    while 1:
-        for id, captions in descriptions.items():
-            n+=1
-            photo = image_feat[id]
-            for line in captions:
-                seq = [word_int[word] for word in line.split(' ') if word in word_int]
-                for i in range(1, len(seq)):
-                    in_seq, out_seq = seq[:i], seq[i]
-                    in_seq = pad_sequences([in_seq], maxlen=max_length)[0]
-                    out_seq = to_categorical(out_seq, num_classes=vocab_size)
-
-                    X1.append(photo)
-                    X2.append(in_seq)
-                    y.append(out_seq)
-
-            if n==num_photos_per_batch:
-                yield ([np.array(X1), np.array(X2)], np.array(y))
-                X1, X2, y = list(), list(), list()
-                n=0
-
-epochs = 30
-batch_size = 3
-train_generator = data_generator(train_descriptions, train_image_feature, batch_size)
-val_generator = data_generator(val_descriptions, val_image_feature, batch_size)
-steps = np.ceil(len(train_descriptions)/batch_size)
-val_steps = np.ceil(len(val_descriptions)/batch_size)
-
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['acc'])
-model.fit_generator(train_generator, epochs=epochs, steps_per_epoch=steps,\
-     validation_data = val_generator, validation_steps = val_steps, verbose=1)
-model.save('../input/model/imagecaption.hdf5')
 
 model = load_model('../input/model/imagecaption.hdf5')
 
@@ -246,7 +210,7 @@ def beam_search_predictions(image, model, beam_index = 3):
     final_caption = ' '.join(final_caption[1:])
     return final_caption
 
-pics_path = glob.glob('../input/test/' + '*.jpg')
+pics_path = glob.glob('../input/test2/' + '*.jpg')
 for path in pics_path:
     image1 = image_feature(path)
     image1 = image1.reshape((1,2048))
