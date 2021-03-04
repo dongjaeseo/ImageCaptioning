@@ -1,12 +1,18 @@
 ImageCaption Generator Project
 
+
 Goal is to create a sentence that describes a given image file!
+
 이 프로젝트의 목적은 주어진 사진을 설명해주는 문장(캡션)을 만들어 주는 것입니다!
 
 
+
 Basic concept:
+
 The model concept is quite similar to Machine Translation model.
+
 해당 모델의 아이디어는 기계번역(Machine Translation)과 많이 유사합니다.
+
 
 
 The basic idea of Machine Translation is
