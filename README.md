@@ -43,4 +43,12 @@ For the sentences in the text file, the steps are as follows:
 2. 대문자를 소문자로 변환해줍니다!
 
 
+Some of the words in the text dataset are not repeated enough to make training meaningful
+So I set word threshold value of 10 (i.e: judging that words below 10 repetition has no merit in training)
+and made a vocab dictionary that contains words with 10+ repetition
+Here's the vocab size of my dictionary : 1948
+
+Before going deeper into data, I'll have to explain about zero_padding and Embedding.
+Not all the sentences we use have same lengths. So I'm going to PAD the sentences with meaningless 0
+
 
